@@ -168,11 +168,7 @@ fn main() {
         draw_handle.draw_circle_v(ball.position, ball.display_radius, Color::WHITE);
 
         draw_handle.draw_text(&left_score.to_string(), SCORE_HORIZONTAL_DISTANCE as i32, SCORE_VERTICAL_DISTANCE as i32, FONT_SIZE, Color::WHITE);
-        let right_score_c_string = std::ffi::CString::new(right_score.to_string()).unwrap();
-        let right_score_distance: f32;
-        unsafe { // MeasureText is unsafe
-            right_score_distance = GAME_WIDTH - (MeasureText(right_score_c_string.as_ptr(), FONT_SIZE) as f32) - SCORE_HORIZONTAL_DISTANCE;
-        }
+        let right_score_distance: f32 = GAME_WIDTH - (raylib::core::text::measure_text(&right_score.to_string(), FONT_SIZE) as f32) - SCORE_HORIZONTAL_DISTANCE;
         draw_handle.draw_text(&right_score.to_string(), right_score_distance as i32, SCORE_VERTICAL_DISTANCE as i32, FONT_SIZE, Color::WHITE);
     }
 }
