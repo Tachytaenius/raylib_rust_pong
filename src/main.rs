@@ -1,4 +1,3 @@
-use raylib::ffi::MeasureText;
 use raylib::prelude::*;
 use raylib::consts::KeyboardKey::*;
 use rand::Rng;
@@ -130,7 +129,6 @@ fn main() {
                 ball.velocity = Vector2::new(f32::cos(new_angle), f32::sin(new_angle));
             } else {
                 right_score += 1;
-
                 left_paddle = new_left_paddle();
                 right_paddle = new_right_paddle();
                 ball = new_ball();
