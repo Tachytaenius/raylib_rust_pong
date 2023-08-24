@@ -17,6 +17,8 @@ const PADDLE_DISPLAY_WIDTH: f32 = 3.0;
 const DEFAULT_PADDLE_HEIGHT: f32 = 50.0;
 const DEFAULT_PADDLE_SPEED: f32 = 100.0;
 const DEFAULT_PADDLE_MAX_BOUNCE_ANGLE: f32 = std::f32::consts::TAU / 10.0;
+const DEFAULT_TARGET_FUDGE_RANGE: f32 = DEFAULT_PADDLE_HEIGHT / 2.0 * 3.0;
+const DEFAULT_REPREDICTION_TIMER_LENGTH: f32 = 0.5;
 
 struct Ball {
     position: Vector2,
@@ -31,7 +33,9 @@ struct Paddle {
     speed: f32,
     max_bounce_angle: f32,
     target_y: f32,
-    target_fudge_range: f32
+    target_fudge_range: f32,
+    reprediction_timer: f32,
+    reprediction_timer_length: f32
 }
 
 fn ping_pong(x: f32, h: f32) -> f32 {
@@ -39,6 +43,10 @@ fn ping_pong(x: f32, h: f32) -> f32 {
 }
 
 fn right_predict_ball_pos(ball: &Ball, right_paddle: &mut Paddle) {
+    if ball.velocity.x <= 0.0 {
+        return;
+    }
+
     let time_remaining = (GAME_WIDTH - ball.position.x) / ball.velocity.x;
     let projected_y_pos = ball.position.y + ball.velocity.y * time_remaining;
     let projected_y_pos_bounced = ping_pong(projected_y_pos, GAME_HEIGHT);
@@ -73,7 +81,9 @@ fn new_left_paddle() -> Paddle {
         speed: DEFAULT_PADDLE_SPEED,
         max_bounce_angle: DEFAULT_PADDLE_MAX_BOUNCE_ANGLE,
         target_y: GAME_HEIGHT / 2.0,
-        target_fudge_range: DEFAULT_PADDLE_HEIGHT * 2.0
+        target_fudge_range: DEFAULT_TARGET_FUDGE_RANGE,
+        reprediction_timer: 0.0,
+        reprediction_timer_length: DEFAULT_REPREDICTION_TIMER_LENGTH
     };
 }
 
@@ -84,8 +94,15 @@ fn new_right_paddle() -> Paddle {
         speed: DEFAULT_PADDLE_SPEED,
         max_bounce_angle: DEFAULT_PADDLE_MAX_BOUNCE_ANGLE,
         target_y: GAME_HEIGHT / 2.0,
-        target_fudge_range: DEFAULT_PADDLE_HEIGHT * 2.0
+        target_fudge_range: DEFAULT_TARGET_FUDGE_RANGE,
+        reprediction_timer: 0.0,
+        reprediction_timer_length: DEFAULT_REPREDICTION_TIMER_LENGTH
     };
+}
+
+fn randomise_timer_length(length: f32) -> f32 {
+    let mut rng = rand::thread_rng();
+    return rng.gen::<f32>() * 0.5 + 0.75;
 }
 
 fn main() {
@@ -102,9 +119,9 @@ fn main() {
     let mut right_paddle = new_right_paddle();
     let mut ball = new_ball();
 
-    if ball.velocity.x > 0.0 {
-        right_predict_ball_pos(&ball, &mut right_paddle);
-    }
+    right_paddle.reprediction_timer = randomise_timer_length(right_paddle.reprediction_timer_length);
+
+    right_predict_ball_pos(&ball, &mut right_paddle);
 
     while !handle.window_should_close() {
         // Update
@@ -121,6 +138,11 @@ fn main() {
         left_paddle.position.y = f32::max(f32::min(left_paddle.position.y + left_paddle_movement, GAME_HEIGHT - left_paddle.height / 2.0), left_paddle.height / 2.0);
 
         // Handle right paddle movement
+        right_paddle.reprediction_timer -= handle.get_frame_time();
+        if right_paddle.reprediction_timer <= 0.0 {
+            right_paddle.reprediction_timer = randomise_timer_length(right_paddle.reprediction_timer_length);
+            right_predict_ball_pos(&ball, &mut right_paddle);
+        }
         let mut right_paddle_movement: f32 = 0.0;
         if right_paddle.position.y > right_paddle.target_y {
             right_paddle_movement -= 1.0;
