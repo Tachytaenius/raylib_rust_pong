@@ -30,7 +30,8 @@ struct Paddle {
     height: f32,
     speed: f32,
     max_bounce_angle: f32,
-    target_y: f32
+    target_y: f32,
+    target_fudge_range: f32
 }
 
 fn ping_pong(x: f32, h: f32) -> f32 {
@@ -41,7 +42,9 @@ fn right_predict_ball_pos(ball: &Ball, right_paddle: &mut Paddle) {
     let time_remaining = (GAME_WIDTH - ball.position.x) / ball.velocity.x;
     let projected_y_pos = ball.position.y + ball.velocity.y * time_remaining;
     let projected_y_pos_bounced = ping_pong(projected_y_pos, GAME_HEIGHT);
-    right_paddle.target_y = projected_y_pos_bounced;
+    let mut rng = rand::thread_rng();
+    let fudge = rng.gen::<f32>() * right_paddle.target_fudge_range - right_paddle.target_fudge_range / 2.0;
+    right_paddle.target_y = projected_y_pos_bounced + fudge;
 }
 
 fn new_ball() -> Ball {
@@ -69,7 +72,8 @@ fn new_left_paddle() -> Paddle {
         height: DEFAULT_PADDLE_HEIGHT,
         speed: DEFAULT_PADDLE_SPEED,
         max_bounce_angle: DEFAULT_PADDLE_MAX_BOUNCE_ANGLE,
-        target_y: GAME_HEIGHT / 2.0
+        target_y: GAME_HEIGHT / 2.0,
+        target_fudge_range: DEFAULT_PADDLE_HEIGHT * 2.0
     };
 }
 
@@ -79,19 +83,12 @@ fn new_right_paddle() -> Paddle {
         height: DEFAULT_PADDLE_HEIGHT,
         speed: DEFAULT_PADDLE_SPEED,
         max_bounce_angle: DEFAULT_PADDLE_MAX_BOUNCE_ANGLE,
-        target_y: GAME_HEIGHT / 2.0
+        target_y: GAME_HEIGHT / 2.0,
+        target_fudge_range: DEFAULT_PADDLE_HEIGHT * 2.0
     };
 }
 
 fn main() {
-    let mut left_paddle = new_left_paddle();
-    let mut right_paddle = new_right_paddle();
-    let mut ball = new_ball();
-
-    if ball.velocity.x > 0.0 {
-        right_predict_ball_pos(&ball, &mut right_paddle);
-    }
-
     let (mut handle, thread) = raylib::init()
         .size(GAME_WIDTH as i32, GAME_HEIGHT as i32)
         .title("Pong")
@@ -100,6 +97,14 @@ fn main() {
 
     let mut left_score: i32 = 0;
     let mut right_score: i32 = 0;
+
+    let mut left_paddle = new_left_paddle();
+    let mut right_paddle = new_right_paddle();
+    let mut ball = new_ball();
+
+    if ball.velocity.x > 0.0 {
+        right_predict_ball_pos(&ball, &mut right_paddle);
+    }
 
     while !handle.window_should_close() {
         // Update
@@ -157,6 +162,9 @@ fn main() {
                 left_paddle = new_left_paddle();
                 right_paddle = new_right_paddle();
                 ball = new_ball();
+                if ball.velocity.x > 0.0 {
+                    right_predict_ball_pos(&ball, &mut right_paddle);
+                }
             }
         }
         if ball.position.x >= right_paddle.position.x && ball.velocity.x >= 0.0 { // If we've moved off to the right and are moving right
