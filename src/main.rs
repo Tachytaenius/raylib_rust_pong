@@ -29,7 +29,19 @@ struct Paddle {
     position: Vector2,
     height: f32,
     speed: f32,
-    max_bounce_angle: f32
+    max_bounce_angle: f32,
+    target_y: f32
+}
+
+fn ping_pong(x: f32, h: f32) -> f32 {
+    return h - (h - x.rem_euclid(2.0 * h)).abs();
+}
+
+fn right_predict_ball_pos(ball: &Ball, right_paddle: &mut Paddle) {
+    let time_remaining = (GAME_WIDTH - ball.position.x) / ball.velocity.x;
+    let projected_y_pos = ball.position.y + ball.velocity.y * time_remaining;
+    let projected_y_pos_bounced = ping_pong(projected_y_pos, GAME_HEIGHT);
+    right_paddle.target_y = projected_y_pos_bounced;
 }
 
 fn new_ball() -> Ball {
@@ -56,7 +68,8 @@ fn new_left_paddle() -> Paddle {
         position: Vector2::new(0.0, GAME_HEIGHT / 2.0),
         height: DEFAULT_PADDLE_HEIGHT,
         speed: DEFAULT_PADDLE_SPEED,
-        max_bounce_angle: DEFAULT_PADDLE_MAX_BOUNCE_ANGLE
+        max_bounce_angle: DEFAULT_PADDLE_MAX_BOUNCE_ANGLE,
+        target_y: GAME_HEIGHT / 2.0
     };
 }
 
@@ -65,7 +78,8 @@ fn new_right_paddle() -> Paddle {
         position: Vector2::new(GAME_WIDTH, GAME_HEIGHT / 2.0),
         height: DEFAULT_PADDLE_HEIGHT,
         speed: DEFAULT_PADDLE_SPEED,
-        max_bounce_angle: DEFAULT_PADDLE_MAX_BOUNCE_ANGLE
+        max_bounce_angle: DEFAULT_PADDLE_MAX_BOUNCE_ANGLE,
+        target_y: GAME_HEIGHT / 2.0
     };
 }
 
@@ -73,6 +87,10 @@ fn main() {
     let mut left_paddle = new_left_paddle();
     let mut right_paddle = new_right_paddle();
     let mut ball = new_ball();
+
+    if ball.velocity.x > 0.0 {
+        right_predict_ball_pos(&ball, &mut right_paddle);
+    }
 
     let (mut handle, thread) = raylib::init()
         .size(GAME_WIDTH as i32, GAME_HEIGHT as i32)
@@ -99,14 +117,20 @@ fn main() {
 
         // Handle right paddle movement
         let mut right_paddle_movement: f32 = 0.0;
-        if handle.is_key_down(KEY_DOWN) {
-            right_paddle_movement += 1.0;
-        }
-        if handle.is_key_down(KEY_UP) {
+        if right_paddle.position.y > right_paddle.target_y {
             right_paddle_movement -= 1.0;
         }
+        if right_paddle.position.y < right_paddle.target_y {
+            right_paddle_movement += 1.0;
+        }
         right_paddle_movement *= right_paddle.speed * handle.get_frame_time();
-        right_paddle.position.y = f32::max(f32::min(right_paddle.position.y + right_paddle_movement, GAME_HEIGHT - right_paddle.height / 2.0), right_paddle.height / 2.0);
+        let moved_right_paddle_pos;
+        if right_paddle_movement > 0.0 {
+            moved_right_paddle_pos = (right_paddle.position.y + right_paddle_movement).min(right_paddle.target_y);
+        } else {
+            moved_right_paddle_pos = (right_paddle.position.y + right_paddle_movement).max(right_paddle.target_y);
+        }
+        right_paddle.position.y = f32::max(f32::min(moved_right_paddle_pos, GAME_HEIGHT - right_paddle.height / 2.0), right_paddle.height / 2.0);
 
         // Handle ball movement
         ball.velocity = ball.velocity.normalized() * ball.speed;
@@ -127,6 +151,7 @@ fn main() {
                 // Treating the lerped angle as a normal to reflect the position with sometimes bounces the ball without flipping its x velocity
                 let new_angle: f32 = lerp_a + (lerp_b - lerp_a) * lerp;
                 ball.velocity = Vector2::new(f32::cos(new_angle), f32::sin(new_angle));
+                right_predict_ball_pos(&ball, &mut right_paddle);
             } else {
                 right_score += 1;
                 left_paddle = new_left_paddle();
